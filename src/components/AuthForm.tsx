@@ -23,34 +23,71 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onAuthSuccess }) => {
 
     try {
       if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        });
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
+          });
 
-        if (error) throw error;
-        onAuthSuccess(data.user);
-      } else {
-        const { data, error } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
-          options: {
-            data: {
-              name: formData.name,
-            }
+          if (error) throw error;
+          if (data.user) {
+            onAuthSuccess(data.user);
+          } else {
+            throw new Error('Sign in failed - no user returned');
           }
-        });
+        } catch (authError: any) {
+          // Handle specific Supabase auth errors
+          if (authError.message?.includes('Invalid login credentials')) {
+            throw new Error('Invalid email or password');
+          } else if (authError.message?.includes('Email not confirmed')) {
+            throw new Error('Please check your email and confirm your account');
+          } else if (authError.message?.includes('Too many requests')) {
+            throw new Error('Too many login attempts. Please try again later');
+          } else {
+            throw new Error(authError.message || 'Sign in failed');
+          }
+        }
+      } else {
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email: formData.email,
+            password: formData.password,
+            options: {
+              data: {
+                name: formData.name,
+              }
+            }
+          });
 
-        if (error) throw error;
-        
-        if (data.user) {
-          onAuthSuccess(data.user);
-        } else {
-          setError('Please check your email to confirm your account');
+          if (error) throw error;
+          
+          if (data.user) {
+            onAuthSuccess(data.user);
+          } else {
+            setError('Please check your email to confirm your account');
+          }
+        } catch (authError: any) {
+          // Handle specific Supabase auth errors
+          if (authError.message?.includes('User already registered')) {
+            throw new Error('An account with this email already exists');
+          } else if (authError.message?.includes('Password should be at least')) {
+            throw new Error('Password must be at least 6 characters long');
+          } else if (authError.message?.includes('Invalid email')) {
+            throw new Error('Please enter a valid email address');
+          } else {
+            throw new Error(authError.message || 'Sign up failed');
+          }
         }
       }
     } catch (error: any) {
-      setError(error.message);
+      // Handle network errors or JSON parsing errors
+      if (error.message?.includes('JSON') || error.message?.includes('Unexpected token')) {
+        setError('Connection error. Please check your internet connection and try again.');
+      } else if (error.message?.includes('fetch')) {
+        setError('Unable to connect to authentication service. Please try again.');
+      } else {
+        setError(error.message || 'An unexpected error occurred');
+      }
     } finally {
       setLoading(false);
     }
