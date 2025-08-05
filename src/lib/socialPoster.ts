@@ -50,27 +50,172 @@ export async function postToLinkedIn(organizationId: string, accessToken: string
 // Placeholder for Twitter, TikTok, YouTube
 // Twitter/X
 export async function postToTwitter(params: { accessToken: string; post: GeneratedPost }) {
-  // Twitter API v2 requires OAuth 2.0 and elevated access
-  // You must implement OAuth 2.0 flow and pass a valid accessToken
-  // Example endpoint: POST https://api.twitter.com/2/tweets
-  // See: https://developer.twitter.com/en/docs/twitter-api/tweets/manage-tweets/api-reference/post-tweets
-  throw new Error('Twitter auto-post not implemented. See comments for integration.');
+  const url = 'https://api.twitter.com/2/tweets';
+  
+  const tweetText = `${params.post.caption}\n\n${params.post.hashtags.join(' ')}`;
+  
+  const data: any = {
+    text: tweetText.slice(0, 280) // Twitter character limit
+  };
+  
+  // Add media if image URL is provided
+  if (params.post.imageUrl) {
+    // First upload media
+    const mediaId = await uploadTwitterMedia(params.accessToken, params.post.imageUrl);
+    if (mediaId) {
+      data.media = { media_ids: [mediaId] };
+    }
+  }
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new SocialPosterError(
+      `Twitter post failed: ${error.detail || error.title || 'Unknown error'}`,
+      'twitter',
+      response.status,
+      response.status >= 500
+    );
+  }
+  
+  return response.json();
 }
 
 // TikTok
 export async function postToTikTok(params: { accessToken: string; post: GeneratedPost }) {
-  // TikTok Content Posting API requires OAuth 2.0 and app audit for public posts
-  // Endpoint: POST /v2/post/publish/video/init/
-  // See: https://developers.tiktok.com/doc/content-posting-api-overview/
-  throw new Error('TikTok auto-post not implemented. See comments for integration.');
+  if (!params.post.imageUrl) {
+    throw new SocialPosterError('TikTok requires a video file', 'tiktok', 400, false);
+  }
+  
+  const url = 'https://open.tiktokapis.com/v2/post/publish/video/init/';
+  
+  const data = {
+    post_info: {
+      title: params.post.caption.slice(0, 150), // TikTok title limit
+      privacy_level: 'MUTUAL_FOLLOW_FRIENDS', // or 'PUBLIC_TO_EVERYONE'
+      disable_duet: false,
+      disable_comment: false,
+      disable_stitch: false,
+      video_cover_timestamp_ms: 1000
+    },
+    source_info: {
+      source: 'FILE_UPLOAD',
+      video_size: 50000000, // Max 50MB
+      chunk_size: 10000000,  // 10MB chunks
+      total_chunk_count: 1
+    }
+  };
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new SocialPosterError(
+      `TikTok post failed: ${error.error?.message || 'Unknown error'}`,
+      'tiktok',
+      response.status,
+      response.status >= 500
+    );
+  }
+  
+  const result = await response.json();
+  
+  // Upload video file using the upload URL
+  if (result.data?.upload_url) {
+    await uploadTikTokVideo(result.data.upload_url, params.post.imageUrl);
+  }
+  
+  return result;
 }
 
 // YouTube
 export async function postToYouTube(params: { accessToken: string; post: GeneratedPost; videoPath: string }) {
-  // YouTube Data API v3 requires OAuth 2.0 and video upload
-  // Use videos.insert endpoint with accessToken and video file
-  // See: https://developers.google.com/youtube/v3/docs/videos/insert
-  throw new Error('YouTube auto-post not implemented. See comments for integration.');
+  if (!params.videoPath) {
+    throw new SocialPosterError('YouTube requires a video file', 'youtube', 400, false);
+  }
+  
+  // Step 1: Upload video metadata
+  const metadataUrl = 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status';
+  
+  const metadata = {
+    snippet: {
+      title: params.post.caption.slice(0, 100),
+      description: `${params.post.caption}\n\n${params.post.hashtags.join(' ')}`,
+      tags: params.post.hashtags.map(tag => tag.replace('#', '')),
+      categoryId: '22', // People & Blogs category
+      defaultLanguage: 'en',
+      defaultAudioLanguage: 'en'
+    },
+    status: {
+      privacyStatus: 'public', // or 'private', 'unlisted'
+      selfDeclaredMadeForKids: false
+    }
+  };
+  
+  const metadataResponse = await fetch(metadataUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+      'X-Upload-Content-Type': 'video/*'
+    },
+    body: JSON.stringify(metadata)
+  });
+  
+  if (!metadataResponse.ok) {
+    const error = await metadataResponse.json();
+    throw new SocialPosterError(
+      `YouTube upload failed: ${error.error?.message || 'Unknown error'}`,
+      'youtube',
+      metadataResponse.status,
+      metadataResponse.status >= 500
+    );
+  }
+  
+  const uploadUrl = metadataResponse.headers.get('Location');
+  if (!uploadUrl) {
+    throw new SocialPosterError('Failed to get YouTube upload URL', 'youtube', 500, true);
+  }
+  
+  // Step 2: Upload video file
+  const videoResponse = await fetch(params.videoPath);
+  const videoBlob = await videoResponse.blob();
+  
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${params.accessToken}`,
+      'Content-Type': 'video/*'
+    },
+    body: videoBlob
+  });
+  
+  if (!uploadResponse.ok) {
+    const error = await uploadResponse.json();
+    throw new SocialPosterError(
+      `YouTube video upload failed: ${error.error?.message || 'Unknown error'}`,
+      'youtube',
+      uploadResponse.status,
+      uploadResponse.status >= 500
+    );
+  }
+  
+  return uploadResponse.json();
 }
 
 // Enhanced error handling with retry logic
@@ -170,10 +315,14 @@ export async function postToAllPlatforms(
             return await postToTikTok({ accessToken: credentials.accessToken, post });
             
           case 'youtube':
+            // For YouTube, we need a video file, not just an image
+            if (!post.imageUrl) {
+              throw new SocialPosterError('YouTube requires a video file', 'youtube', 400, false);
+            }
             return await postToYouTube({ 
               accessToken: credentials.accessToken, 
               post, 
-              videoPath: post.imageUrl || '' 
+              videoPath: post.imageUrl 
             });
             
           default:
@@ -183,6 +332,8 @@ export async function postToAllPlatforms(
       
       results[platform] = {
         success: true,
+        message: `Successfully posted to ${platform}!`,
+        postId: getPostIdFromResult(result, platform),
         data: result,
         timestamp: new Date().toISOString()
       };
@@ -203,6 +354,51 @@ export async function postToAllPlatforms(
   }
   
   return results;
+}
+
+// Helper function to upload media to Twitter
+async function uploadTwitterMedia(accessToken: string, imageUrl: string): Promise<string | null> {
+  try {
+    // Download image
+    const imageResponse = await fetch(imageUrl);
+    const imageBlob = await imageResponse.blob();
+    const imageBuffer = await imageBlob.arrayBuffer();
+    const base64Image = btoa(String.fromCharCode(...new Uint8Array(imageBuffer)));
+    
+    // Upload to Twitter
+    const uploadResponse = await fetch('https://upload.twitter.com/1.1/media/upload.json', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        media_data: base64Image
+      })
+    });
+    
+    if (uploadResponse.ok) {
+      const result = await uploadResponse.json();
+      return result.media_id_string;
+    }
+  } catch (error) {
+    console.error('Failed to upload Twitter media:', error);
+  }
+  return null;
+}
+
+// Helper function to upload video to TikTok
+async function uploadTikTokVideo(uploadUrl: string, videoUrl: string): Promise<void> {
+  const videoResponse = await fetch(videoUrl);
+  const videoBlob = await videoResponse.blob();
+  
+  await fetch(uploadUrl, {
+    method: 'PUT',
+    body: videoBlob,
+    headers: {
+      'Content-Type': 'video/mp4'
+    }
+  });
 }
 
 // Helper functions to get platform-specific IDs
@@ -253,4 +449,24 @@ async function getLinkedInOrganizationId(accessToken: string): Promise<string> {
   }
   
   return data.elements[0].organizationalTarget.split(':').pop(); // Extract ID from URN
+}
+
+// Helper function to extract post ID from API response
+function getPostIdFromResult(result: any, platform: string): string {
+  switch (platform) {
+    case 'facebook':
+      return result.data?.id || result.id || 'Unknown';
+    case 'instagram':
+      return result.data?.id || result.id || 'Unknown';
+    case 'linkedin':
+      return result.data?.id || result.id || 'Unknown';
+    case 'twitter':
+      return result.data?.id || result.id || 'Unknown';
+    case 'tiktok':
+      return result.data?.publish_id || 'Unknown';
+    case 'youtube':
+      return result.id || 'Unknown';
+    default:
+      return 'Unknown';
+  }
 }
