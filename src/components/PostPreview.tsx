@@ -423,6 +423,16 @@ export const PostPreview: React.FC<PostPreviewProps> = ({ posts, onBack, onRegen
           Regenerate Posts
         </button>
       </div>
+      
+      <div className="mt-4">
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('showPublishModal', { detail: posts }))}
+          className="w-full bg-green-600 text-white py-4 px-8 rounded-lg font-medium hover:bg-green-700 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+        >
+          <Share2 className="w-5 h-5" />
+          Publish to Platforms
+        </button>
+      </div>
     </div>
   );
 };

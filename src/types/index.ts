@@ -34,3 +34,22 @@ export interface StepData {
   content?: PostContent;
   generatedPosts?: GeneratedPost[];
 }
+
+export type Step = 'auth' | 'company' | 'content' | 'generate' | 'preview' | 'publish';
+
+export interface PublishResult {
+  success: boolean;
+  message: string;
+  postId?: string;
+  timestamp: string;
+  error?: string;
+}
+
+export interface PlatformCredentials {
+  facebook?: { pageId: string; accessToken: string };
+  instagram?: { businessAccountId: string; accessToken: string };
+  linkedin?: { organizationId: string; accessToken: string };
+  twitter?: { accessToken: string };
+  tiktok?: { accessToken: string };
+  youtube?: { accessToken: string; videoPath: string };
+}

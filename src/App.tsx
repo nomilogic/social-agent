@@ -9,6 +9,7 @@ import { CompanySetup } from './components/CompanySetup';
 import { ContentInput } from './components/ContentInput';
 import { AIGenerator } from './components/AIGenerator';
 import { PostPreview } from './components/PostPreview';
+import { PublishPosts } from './components/PublishPosts'; // Import PublishPosts
 import { StepData } from './types';
 
 type Step = 'auth' | 'company-select' | 'company-setup' | 'content' | 'generate' | 'preview' | 'publish';
@@ -19,15 +20,28 @@ function App() {
   const [user, setUser] = useState<any>(null);
   const [selectedCompany, setSelectedCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showPublishModal, setShowPublishModal] = useState(false); // State to control the publish modal
 
   React.useEffect(() => {
     initializeAuth();
+
+    // Listen for custom event to show the publish modal
+    const handleShowPublishModal = (event: CustomEvent) => {
+      setStepData(prev => ({ ...prev, generatedPosts: event.detail })); // Ensure generatedPosts is in stepData
+      setShowPublishModal(true);
+    };
+
+    window.addEventListener('showPublishModal', handleShowPublishModal as EventListener);
+
+    return () => {
+      window.removeEventListener('showPublishModal', handleShowPublishModal as EventListener);
+    };
   }, []);
 
   const initializeAuth = async () => {
     try {
       const currentUser = await getCurrentUser();
-      
+
       if (currentUser) {
         setUser(currentUser);
         setCurrentStep('company-select');
@@ -56,10 +70,10 @@ function App() {
           } else {
             savedCompany = await saveCompany(companyInfo, user.id);
           }
-          setStepData(prev => ({ 
-            ...prev, 
+          setStepData(prev => ({
+            ...prev,
             company: companyInfo,
-            companyId: savedCompany.id 
+            companyId: savedCompany.id
           }));
           setSelectedCompany(savedCompany);
         } else {
@@ -73,7 +87,7 @@ function App() {
         setCurrentStep('content');
       }
     };
-    
+
     saveAndContinue();
   };
 
@@ -100,8 +114,11 @@ function App() {
   };
 
   const handleGoToPublish = () => {
-    setCurrentStep('publish');
+    // Trigger the custom event to show the publish modal
+    const publishEvent = new CustomEvent('showPublishModal', { detail: stepData.generatedPosts });
+    window.dispatchEvent(publishEvent);
   };
+
 
   const handleSelectCompany = (company: any) => {
     setSelectedCompany(company);
@@ -184,7 +201,7 @@ function App() {
                 <p className="text-sm text-gray-600">AI-Powered Social Media Content Generator</p>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-4">
               {user && (
                 <span className="text-sm text-gray-600">
@@ -277,7 +294,6 @@ function App() {
 
           {currentStep === 'publish' && stepData.generatedPosts && (
             <React.Suspense fallback={<div>Loading publish page...</div>}>
-              {/* Lazy load for performance, or import directly if preferred */}
               {React.createElement(require('./components/PublishPosts').PublishPosts, {
                 posts: stepData.generatedPosts,
                 onBack: handleBack
@@ -286,6 +302,18 @@ function App() {
           )}
         </div>
       </main>
+
+      {/* Publish Modal */}
+      {showPublishModal && stepData.generatedPosts && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-auto">
+            <PublishPosts
+              posts={stepData.generatedPosts}
+              onBack={() => setShowPublishModal(false)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-100 mt-16">

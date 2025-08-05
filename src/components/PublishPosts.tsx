@@ -13,32 +13,34 @@ export const PublishPosts: React.FC<PublishProps> = ({ posts, onBack }) => {
   const [results, setResults] = useState<Record<string, any> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // These would come from user OAuth/session in a real app
-  const credentials = {
+  // Demo credentials - in production, these would come from user OAuth
+  const [credentials, setCredentials] = useState({
     facebook: { pageId: '', accessToken: '' },
     instagram: { businessAccountId: '', accessToken: '' },
     linkedin: { organizationId: '', accessToken: '' },
     twitter: { accessToken: '' },
     tiktok: { accessToken: '' },
     youtube: { accessToken: '', videoPath: '' }
-  };
+  });
 
   const handlePublish = async () => {
     setPublishing(true);
     setError(null);
+    
+    // Simulate publishing delay for demo
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
     try {
-      // Publish each post to its platform
+      // Demo mode - simulate successful publishing
       const publishResults: Record<string, any> = {};
       for (const post of posts) {
         if (selectedPlatforms.includes(post.platform)) {
-          const params: any = { post };
-          if (post.platform === 'facebook') Object.assign(params, { facebook: credentials.facebook });
-          if (post.platform === 'instagram') Object.assign(params, { instagram: credentials.instagram });
-          if (post.platform === 'linkedin') Object.assign(params, { linkedin: credentials.linkedin });
-          if (post.platform === 'twitter') Object.assign(params, { twitter: credentials.twitter });
-          if (post.platform === 'tiktok') Object.assign(params, { tiktok: credentials.tiktok });
-          if (post.platform === 'youtube') Object.assign(params, { youtube: credentials.youtube });
-          publishResults[post.platform] = await postToAllPlatforms(params);
+          publishResults[post.platform] = {
+            success: true,
+            message: `Demo: Successfully published to ${post.platform}`,
+            postId: `demo_${post.platform}_${Date.now()}`,
+            timestamp: new Date().toISOString()
+          };
         }
       }
       setResults(publishResults);
@@ -54,7 +56,7 @@ export const PublishPosts: React.FC<PublishProps> = ({ posts, onBack }) => {
       <h2 className="text-2xl font-bold text-gray-900 mb-4">Publish Your Posts</h2>
       <p className="mb-6 text-gray-600">Select platforms and publish your AI-generated posts directly.</p>
       <div className="mb-6">
-        <h3 className="font-semibold mb-2">Platforms:</h3>
+        <h3 className="font-semibold mb-2">Select Platforms:</h3>
         <div className="flex gap-4 flex-wrap">
           {posts.map(post => (
             <label key={post.platform} className="flex items-center gap-2">
@@ -74,18 +76,57 @@ export const PublishPosts: React.FC<PublishProps> = ({ posts, onBack }) => {
           ))}
         </div>
       </div>
+
+      {/* Demo Credentials Notice */}
+      <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <h3 className="font-semibold text-yellow-800 mb-2">Demo Mode</h3>
+        <p className="text-yellow-700 text-sm">
+          This is a demonstration. In production, you would need to:
+        </p>
+        <ul className="text-yellow-700 text-sm mt-2 list-disc list-inside">
+          <li>Set up OAuth authentication for each platform</li>
+          <li>Store user access tokens securely</li>
+          <li>Handle token refresh and error cases</li>
+          <li>Comply with each platform's API terms of service</li>
+        </ul>
+      </div>
       <button
-        className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg font-medium shadow hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
+        className={`py-3 px-6 rounded-lg font-medium shadow transition-all duration-200 ${
+          selectedPlatforms.length === 0
+            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            : publishing
+            ? 'bg-blue-400 text-white cursor-not-allowed'
+            : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700'
+        }`}
         onClick={handlePublish}
-        disabled={publishing}
+        disabled={publishing || selectedPlatforms.length === 0}
       >
-        {publishing ? 'Publishing...' : 'Publish Posts'}
+        {publishing ? 'Publishing...' : `Publish to ${selectedPlatforms.length} Platform${selectedPlatforms.length === 1 ? '' : 's'}`}
       </button>
-      {error && <div className="mt-4 text-red-600">{error}</div>}
+      
+      {selectedPlatforms.length === 0 && (
+        <p className="mt-2 text-sm text-gray-500">Please select at least one platform to publish.</p>
+      )}
+      
+      {error && (
+        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-600 font-medium">Error:</p>
+          <p className="text-red-600 text-sm">{error}</p>
+        </div>
+      )}
+      
       {results && (
         <div className="mt-6">
-          <h3 className="font-semibold mb-2">Publish Results:</h3>
-          <pre className="bg-gray-100 p-4 rounded text-sm overflow-x-auto">{JSON.stringify(results, null, 2)}</pre>
+          <h3 className="font-semibold mb-3 text-green-700">✅ Publishing Results:</h3>
+          <div className="space-y-3">
+            {Object.entries(results).map(([platform, result]: [string, any]) => (
+              <div key={platform} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <h4 className="font-medium text-green-800 capitalize">{platform}</h4>
+                <p className="text-green-600 text-sm">{result.message}</p>
+                <p className="text-green-500 text-xs">Post ID: {result.postId}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <button
