@@ -17,12 +17,21 @@ export interface PlatformOAuthConfig {
   tokenUrl: string;
 }
 
+// Get the base URL for redirect URIs
+const getBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  // Fallback for server-side rendering or when window is not available
+  return import.meta.env.VITE_APP_URL || 'http://localhost:5173';
+};
+
 // OAuth configurations for each platform
 export const oauthConfigs: Record<string, PlatformOAuthConfig> = {
   facebook: {
     clientId: import.meta.env.VITE_FACEBOOK_CLIENT_ID || '',
     clientSecret: import.meta.env.VITE_FACEBOOK_CLIENT_SECRET || '',
-    redirectUri: `${window.location.origin}/oauth/facebook/callback`,
+    redirectUri: `${getBaseUrl()}/oauth/facebook/callback`,
     scopes: ['pages_manage_posts', 'pages_read_engagement', 'publish_to_groups'],
     authUrl: 'https://www.facebook.com/v19.0/dialog/oauth',
     tokenUrl: 'https://graph.facebook.com/v19.0/oauth/access_token'
@@ -30,7 +39,7 @@ export const oauthConfigs: Record<string, PlatformOAuthConfig> = {
   instagram: {
     clientId: import.meta.env.VITE_INSTAGRAM_CLIENT_ID || '',
     clientSecret: import.meta.env.VITE_INSTAGRAM_CLIENT_SECRET || '',
-    redirectUri: `${window.location.origin}/oauth/instagram/callback`,
+    redirectUri: `${getBaseUrl()}/oauth/instagram/callback`,
     scopes: ['instagram_basic', 'instagram_content_publish'],
     authUrl: 'https://api.instagram.com/oauth/authorize',
     tokenUrl: 'https://api.instagram.com/oauth/access_token'
@@ -38,7 +47,7 @@ export const oauthConfigs: Record<string, PlatformOAuthConfig> = {
   linkedin: {
     clientId: import.meta.env.VITE_LINKEDIN_CLIENT_ID || '',
     clientSecret: import.meta.env.VITE_LINKEDIN_CLIENT_SECRET || '',
-    redirectUri: `${window.location.origin}/oauth/linkedin/callback`,
+    redirectUri: `${getBaseUrl()}/oauth/linkedin/callback`,
     scopes: ['w_member_social', 'r_liteprofile', 'r_emailaddress'],
     authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
     tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken'
@@ -46,7 +55,7 @@ export const oauthConfigs: Record<string, PlatformOAuthConfig> = {
   twitter: {
     clientId: import.meta.env.VITE_TWITTER_CLIENT_ID || '',
     clientSecret: import.meta.env.VITE_TWITTER_CLIENT_SECRET || '',
-    redirectUri: `${window.location.origin}/oauth/twitter/callback`,
+    redirectUri: `${getBaseUrl()}/oauth/twitter/callback`,
     scopes: ['tweet.read', 'tweet.write', 'users.read'],
     authUrl: 'https://twitter.com/i/oauth2/authorize',
     tokenUrl: 'https://api.twitter.com/2/oauth2/token'
@@ -54,7 +63,7 @@ export const oauthConfigs: Record<string, PlatformOAuthConfig> = {
   tiktok: {
     clientId: import.meta.env.VITE_TIKTOK_CLIENT_ID || '',
     clientSecret: import.meta.env.VITE_TIKTOK_CLIENT_SECRET || '',
-    redirectUri: `${window.location.origin}/oauth/tiktok/callback`,
+    redirectUri: `${getBaseUrl()}/oauth/tiktok/callback`,
     scopes: ['user.info.basic', 'video.upload'],
     authUrl: 'https://www.tiktok.com/v2/auth/authorize',
     tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token'
@@ -62,7 +71,7 @@ export const oauthConfigs: Record<string, PlatformOAuthConfig> = {
   youtube: {
     clientId: import.meta.env.VITE_YOUTUBE_CLIENT_ID || '',
     clientSecret: import.meta.env.VITE_YOUTUBE_CLIENT_SECRET || '',
-    redirectUri: `${window.location.origin}/oauth/youtube/callback`,
+    redirectUri: `${getBaseUrl()}/oauth/youtube/callback`,
     scopes: ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube'],
     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenUrl: 'https://oauth2.googleapis.com/token'

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, ArrowLeft, LogOut } from 'lucide-react';
 import { getCurrentUser, saveCompany, savePost, updateCompany } from './lib/database';
 import { supabase } from './lib/supabase';
@@ -10,6 +10,7 @@ import { ContentInput } from './components/ContentInput';
 import { AIGenerator } from './components/AIGenerator';
 import { PostPreview } from './components/PostPreview';
 import { PublishPosts } from './components/PublishPosts'; // Import PublishPosts
+import { OAuthCallback } from './components/OAuthCallback'; // Import OAuthCallback
 import { StepData } from './types';
 
 type Step = 'auth' | 'company-select' | 'company-setup' | 'content' | 'generate' | 'preview' | 'publish';
@@ -182,7 +183,13 @@ function App() {
     );
   }
 
-  if (currentStep === 'auth') {
+  // Check if this is an OAuth callback
+  const path = window.location.pathname;
+  if (path.startsWith('/oauth/') && path.endsWith('/callback')) {
+    return <OAuthCallback />;
+  }
+
+  if (!user) {
     return <AuthForm onAuthSuccess={handleAuthSuccess} />;
   }
 
