@@ -59,6 +59,11 @@ export async function analyzeImage(imageFile: File): Promise<string> {
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   try {
+    // Validate file before processing
+    if (!imageFile || !imageFile.type.startsWith('image/')) {
+      throw new Error('Invalid image file');
+    }
+
     // Convert file to base64
     const imageData = await fileToGenerativePart(imageFile);
     
@@ -75,26 +80,52 @@ Keep the description concise but informative for social media marketing purposes
 
     const result = await model.generateContent([prompt, imageData]);
     const response = await result.response;
-    return response.text();
+    const text = response.text();
+    
+    if (!text || text.trim().length === 0) {
+      throw new Error('Empty response from image analysis');
+    }
+    
+    return text.trim();
   } catch (error) {
-    console.error('Error analyzing image:', error);
+    console.error('Error analyzing image:', error.message || error);
     return 'Unable to analyze image. Please add a description manually.';
   }
 }
 
 async function fileToGenerativePart(file: File) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    
+    reader.onerror = () => {
+      reject(new Error('Failed to read file'));
+    };
+    
     reader.onloadend = () => {
-      const base64Data = reader.result as string;
+      try {
+        const base64Data = reader.result as string;
+        if (!base64Data) {
+          reject(new Error('No data from file reader'));
+          return;
+        }
+        
       const base64Content = base64Data.split(',')[1];
+        if (!base64Content) {
+          reject(new Error('Invalid base64 data'));
+          return;
+        }
+        
       resolve({
         inlineData: {
           data: base64Content,
           mimeType: file.type,
         },
       });
+      } catch (error) {
+        reject(error);
+      }
     };
+    
     reader.readAsDataURL(file);
   });
 }
@@ -157,13 +188,37 @@ Make sure the JSON is valid and properly formatted.
     const response = await result.response;
     const text = response.text();
     
+    // Clean and validate the response text
+    if (!text || text.trim().length === 0) {
+      throw new Error('Empty response from AI');
+    }
+
     // Try to extract JSON from the response
-    let jsonMatch = text.match(/\{[\s\S]*\}/);
+    let jsonMatch = text.match(/\{[\s\S]*?\}/);
     if (!jsonMatch) {
+      console.warn('No JSON found in AI response, using fallback');
       throw new Error('No JSON found in response');
     }
-    
-    const jsonResponse = JSON.parse(jsonMatch[0]);
+
+    let jsonResponse;
+    try {
+      // Clean the JSON string before parsing
+      const cleanJsonString = jsonMatch[0]
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
+        .replace(/,\s*}/g, '}') // Remove trailing commas
+        .replace(/,\s*]/g, ']'); // Remove trailing commas in arrays
+      
+      jsonResponse = JSON.parse(cleanJsonString);
+    } catch (parseError) {
+      console.error('JSON parsing failed:', parseError);
+      console.error('Raw response:', text);
+      throw new Error('Invalid JSON in AI response');
+    }
+
+    // Validate the response structure
+    if (!jsonResponse || typeof jsonResponse !== 'object') {
+      throw new Error('Invalid response structure from AI');
+    }
     
     return {
       caption: jsonResponse.caption || contentData.prompt,
@@ -173,7 +228,7 @@ Make sure the JSON is valid and properly formatted.
       engagement: jsonResponse.engagement_prediction || 'medium'
     };
   } catch (error) {
-    console.error('Error generating content with Gemini:', error);
+    console.error('Error generating content with Gemini:', error.message || error);
     
     // Fallback content generation
     return generateFallbackContent(platform, companyInfo, contentData, config);
