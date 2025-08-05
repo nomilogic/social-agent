@@ -73,35 +73,184 @@ export async function postToYouTube(params: { accessToken: string; post: Generat
   throw new Error('YouTube auto-post not implemented. See comments for integration.');
 }
 
-// Utility: Post to all platforms
-export async function postToAllPlatforms(params: {
-  facebook?: { pageId: string; accessToken: string };
-  instagram?: { businessAccountId: string; accessToken: string };
-  linkedin?: { organizationId: string; accessToken: string };
-  twitter?: { accessToken: string };
-  tiktok?: { accessToken: string };
-  youtube?: { accessToken: string; videoPath: string };
-  post: GeneratedPost;
-}) {
+// Enhanced error handling with retry logic
+export class SocialPosterError extends Error {
+  constructor(
+    message: string,
+    public platform: string,
+    public statusCode?: number,
+    public retryable: boolean = false
+  ) {
+    super(message);
+    this.name = 'SocialPosterError';
+  }
+}
+
+// Retry mechanism for failed posts
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  platform: string,
+  maxRetries: number = 3
+): Promise<T> {
+  let lastError: Error;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      
+      // Don't retry on authentication errors
+      if (error instanceof SocialPosterError && !error.retryable) {
+        throw error;
+      }
+      
+      if (attempt === maxRetries) {
+        throw new SocialPosterError(
+          `Failed after ${maxRetries} attempts: ${lastError.message}`,
+          platform,
+          undefined,
+          false
+        );
+      }
+      
+      // Exponential backoff
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+    }
+  }
+  
+  throw lastError!;
+}
+
+// Utility: Post to all platforms with enhanced error handling
+export async function postToAllPlatforms(
+  userId: string,
+  posts: GeneratedPost[],
+  onProgress?: (platform: string, status: 'pending' | 'success' | 'error') => void
+): Promise<Record<string, any>> {
+  const { oauthManager } = await import('./oauth');
   const results: Record<string, any> = {};
-  const { facebook, instagram, linkedin, twitter, tiktok, youtube, post } = params;
-  if (facebook) {
-    results.facebook = await postToFacebook(facebook.pageId, facebook.accessToken, post);
+  
+  for (const post of posts) {
+    const platform = post.platform;
+    
+    try {
+      onProgress?.(platform, 'pending');
+      
+      // Get OAuth credentials
+      const credentials = await oauthManager.getCredentials(userId, platform);
+      if (!credentials) {
+        throw new SocialPosterError(
+          `No OAuth credentials found for ${platform}`,
+          platform,
+          401,
+          false
+        );
+      }
+      
+      // Post with retry logic
+      const result = await withRetry(async () => {
+        switch (platform) {
+          case 'facebook':
+            const fbPageId = await getFacebookPageId(credentials.accessToken);
+            return await postToFacebook(fbPageId, credentials.accessToken, post);
+            
+          case 'instagram':
+            const igAccountId = await getInstagramBusinessAccountId(credentials.accessToken);
+            return await postToInstagram(igAccountId, credentials.accessToken, post);
+            
+          case 'linkedin':
+            const linkedinOrgId = await getLinkedInOrganizationId(credentials.accessToken);
+            return await postToLinkedIn(linkedinOrgId, credentials.accessToken, post);
+            
+          case 'twitter':
+            return await postToTwitter({ accessToken: credentials.accessToken, post });
+            
+          case 'tiktok':
+            return await postToTikTok({ accessToken: credentials.accessToken, post });
+            
+          case 'youtube':
+            return await postToYouTube({ 
+              accessToken: credentials.accessToken, 
+              post, 
+              videoPath: post.imageUrl || '' 
+            });
+            
+          default:
+            throw new SocialPosterError(`Unsupported platform: ${platform}`, platform);
+        }
+      }, platform);
+      
+      results[platform] = {
+        success: true,
+        data: result,
+        timestamp: new Date().toISOString()
+      };
+      
+      onProgress?.(platform, 'success');
+      
+    } catch (error) {
+      console.error(`Failed to post to ${platform}:`, error);
+      
+      results[platform] = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      };
+      
+      onProgress?.(platform, 'error');
+    }
   }
-  if (instagram) {
-    results.instagram = await postToInstagram(instagram.businessAccountId, instagram.accessToken, post);
-  }
-  if (linkedin) {
-    results.linkedin = await postToLinkedIn(linkedin.organizationId, linkedin.accessToken, post);
-  }
-  if (twitter) {
-    results.twitter = await postToTwitter({ accessToken: twitter.accessToken, post });
-  }
-  if (tiktok) {
-    results.tiktok = await postToTikTok({ accessToken: tiktok.accessToken, post });
-  }
-  if (youtube) {
-    results.youtube = await postToYouTube({ accessToken: youtube.accessToken, post, videoPath: youtube.videoPath });
-  }
+  
   return results;
+}
+
+// Helper functions to get platform-specific IDs
+async function getFacebookPageId(accessToken: string): Promise<string> {
+  const response = await fetch(`https://graph.facebook.com/me/accounts?access_token=${accessToken}`);
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new SocialPosterError(`Failed to get Facebook page ID: ${data.error?.message}`, 'facebook', response.status, false);
+  }
+  
+  if (!data.data || data.data.length === 0) {
+    throw new SocialPosterError('No Facebook pages found', 'facebook', 404, false);
+  }
+  
+  return data.data[0].id; // Use first page
+}
+
+async function getInstagramBusinessAccountId(accessToken: string): Promise<string> {
+  const pageId = await getFacebookPageId(accessToken);
+  const response = await fetch(`https://graph.facebook.com/${pageId}?fields=instagram_business_account&access_token=${accessToken}`);
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new SocialPosterError(`Failed to get Instagram account ID: ${data.error?.message}`, 'instagram', response.status, false);
+  }
+  
+  if (!data.instagram_business_account) {
+    throw new SocialPosterError('No Instagram business account linked', 'instagram', 404, false);
+  }
+  
+  return data.instagram_business_account.id;
+}
+
+async function getLinkedInOrganizationId(accessToken: string): Promise<string> {
+  const response = await fetch('https://api.linkedin.com/v2/organizationalEntityAcls?q=roleAssignee', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new SocialPosterError(`Failed to get LinkedIn organization ID: ${data.message}`, 'linkedin', response.status, false);
+  }
+  
+  if (!data.elements || data.elements.length === 0) {
+    throw new SocialPosterError('No LinkedIn organizations found', 'linkedin', 404, false);
+  }
+  
+  return data.elements[0].organizationalTarget.split(':').pop(); // Extract ID from URN
 }

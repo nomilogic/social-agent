@@ -293,12 +293,11 @@ function App() {
           )}
 
           {currentStep === 'publish' && stepData.generatedPosts && (
-            <React.Suspense fallback={<div>Loading publish page...</div>}>
-              {React.createElement(require('./components/PublishPosts').PublishPosts, {
-                posts: stepData.generatedPosts,
-                onBack: handleBack
-              })}
-            </React.Suspense>
+            <PublishPosts
+              posts={stepData.generatedPosts || []}
+              userId={user?.id || ''}
+              onBack={() => setCurrentStep('preview')}
+            />
           )}
         </div>
       </main>

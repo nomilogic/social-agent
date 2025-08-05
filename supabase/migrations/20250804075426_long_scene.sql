@@ -125,6 +125,69 @@ CREATE POLICY "Users can delete their own posts"
   TO authenticated
   USING (auth.uid() = user_id);
 
+-- Create oauth_tokens table for secure token storage
+CREATE TABLE IF NOT EXISTS oauth_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  platform text NOT NULL,
+  access_token text NOT NULL,
+  refresh_token text,
+  expires_at timestamptz,
+  token_type text DEFAULT 'Bearer',
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, platform)
+);
+
+-- Enable Row Level Security for oauth_tokens
+ALTER TABLE oauth_tokens ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for oauth_tokens table
+CREATE POLICY "Users can manage their own OAuth tokens"
+  ON oauth_tokens
+  FOR ALL
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Create function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create triggers for updated_at
+CREATE TRIGGER update_companies_updated_at BEFORE UPDATE ON companies
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_posts_updated_at BEFORE UPDATE ON posts
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_oauth_tokens_updated_at BEFORE UPDATE ON oauth_tokens
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE POLICY "Users can view their own posts"
+  ON posts
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own posts"
+  ON posts
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own posts"
+  ON posts
+  FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
 -- Create policies for storage
 CREATE POLICY "Users can upload their own media"
   ON storage.objects
