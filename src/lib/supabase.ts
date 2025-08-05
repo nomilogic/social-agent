@@ -16,7 +16,7 @@ export interface Database {
       companies: {
         Row: {
           id: string;
-          name: string;
+          name: string; 
           website: string | null;
           industry: string | null;
           target_audience: string | null;
