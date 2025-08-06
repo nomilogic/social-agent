@@ -316,6 +316,7 @@ function App() {
             <PublishPosts
               posts={stepData.generatedPosts}
               onBack={() => setShowPublishModal(false)}
+              userId=''
             />
           </div>
         </div>

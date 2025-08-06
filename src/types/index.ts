@@ -33,6 +33,9 @@ export interface StepData {
   company?: CompanyInfo;
   content?: PostContent;
   generatedPosts?: GeneratedPost[];
+  companyId?: string;
+  contentId?: string;
+  userId?: string;
 }
 
 export type Step = 'auth' | 'company' | 'content' | 'generate' | 'preview' | 'publish';

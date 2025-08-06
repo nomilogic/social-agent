@@ -48,9 +48,11 @@ export const oauthConfigs: Record<string, PlatformOAuthConfig> = {
     clientId: import.meta.env.VITE_LINKEDIN_CLIENT_ID || '',
     clientSecret: import.meta.env.VITE_LINKEDIN_CLIENT_SECRET || '',
     redirectUri: `${getBaseUrl()}/oauth/linkedin/callback`,
-    scopes: ['w_member_social', 'r_liteprofile', 'r_emailaddress'],
-    authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
-    tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken'
+//    scopes: ['w_member_social', 'r_liteprofile', 'r_emailaddress'],
+    scopes: ['w_member_social', 'openid', 'email', 'profile']
+,   authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
+    tokenUrl: 'https://vxxhfr-4000.csb.app/api/oauth/linkedin/callback'
+    //tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken'
   },
   twitter: {
     clientId: import.meta.env.VITE_TWITTER_CLIENT_ID || '',
@@ -113,11 +115,11 @@ export class OAuthManager {
   }
 
   // Handle OAuth callback
-  async handleCallback(platform: string, code: string, state: string): Promise<OAuthCredentials> {
-    const userId = this.pendingAuths.get(state);
-    if (!userId) {
-      throw new Error('Invalid state parameter');
-    }
+  async handleCallback(platform: string, code: string, state: string=""): Promise<OAuthCredentials> {
+    // const userId = this.pendingAuths.get(state);
+    // if (!userId) {
+    //   throw new Error('Invalid state parameter');
+    // }
 
     this.pendingAuths.delete(state);
     const config = oauthConfigs[platform];
@@ -127,7 +129,7 @@ export class OAuthManager {
       const credentials = await this.processTokenResponse(tokenResponse, platform);
       
       // Store credentials securely
-      await this.storeCredentials(userId, platform, credentials);
+      //await this.storeCredentials(userId, platform, credentials);
       
       return credentials;
     } catch (error) {

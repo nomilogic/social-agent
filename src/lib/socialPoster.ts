@@ -435,7 +435,7 @@ async function getInstagramBusinessAccountId(accessToken: string): Promise<strin
 
 async function getLinkedInOrganizationId(accessToken: string): Promise<string> {
   const response = await fetch('https://api.linkedin.com/v2/organizationalEntityAcls?q=roleAssignee', {
-    headers: { Authorization: `Bearer ${accessToken}` }
+    headers: { Authorization: `Bearer AQRGkhk5zaA7OOrWhxCOIHDTiEJCSGfH2iRxnSD6mmhYjgN3M` }
   });
   
   const data = await response.json();

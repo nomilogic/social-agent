@@ -12,8 +12,8 @@ export const OAuthCallback: React.FC = () => {
   useEffect(() => {
     handleOAuthCallback();
   }, [searchParams]);
-
-  const handleOAuthCallback = async () => {
+//http://localhost:5173/oauth/linkedin/callback?code=AQR8eIGL5JHXD40jx6RvFjp_kSUY6sxso4nHl300-Fw3fIiu39dIscZYAaInRsmLPvJI2xqVAXkdI9bN8K3lUm7954PTkwxaMdAlB9rFfaGV60qQ05kx4_Uhr0i7kNWUbIujrNHGpqSQXTHOgHfCBDGtp-KnQlw3IjyFEkwktIBpU74Sw1S1dGp6L9JjCivw1Zwk5AjoYqQxVAuvLc8&state=linkedin_undefined_9738bb92a647c413dc6378df761054c3
+    const handleOAuthCallback = async () => {
     try {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
@@ -27,13 +27,14 @@ export const OAuthCallback: React.FC = () => {
         throw new Error('Missing required OAuth parameters');
       }
 
-      // Extract platform from state
+      console.log(`OAuth code received: ${code}`);
       const platform = state.split('_')[0];
+
       if (!platform) {
         throw new Error('Invalid state parameter');
       }
 
-      // Handle the OAuth callback
+      console.log(`Handling OAuth callback for platform: ${platform}`);
       await oauthManager.handleCallback(platform, code, state);
 
       setStatus('success');
@@ -42,17 +43,16 @@ export const OAuthCallback: React.FC = () => {
       // Close window after a short delay
       setTimeout(() => {
         window.close();
-      }, 2000);
+      }, 122000);
 
     } catch (error) {
       console.error('OAuth callback error:', error);
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'OAuth authentication failed');
 
-      // Close window after a delay even on error
       setTimeout(() => {
         window.close();
-      }, 3000);
+      }, 30000);
     }
   };
 

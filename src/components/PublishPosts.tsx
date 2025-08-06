@@ -6,7 +6,7 @@ import { oauthManager } from '../lib/oauth';
 
 interface PublishProps {
   posts: GeneratedPost[];
-  userId: string;
+  userId?: string;
   onBack: () => void;
 }
 
@@ -25,7 +25,7 @@ export const PublishPosts: React.FC<PublishProps> = ({ posts, userId, onBack }) 
   const checkConnectedPlatforms = async () => {
     const connected: Platform[] = [];
     for (const post of posts) {
-      const hasCredentials = await oauthManager.hasValidCredentials(userId, post.platform);
+      const hasCredentials = await oauthManager.hasValidCredentials(userId || '', post.platform);
       if (hasCredentials) {
         connected.push(post.platform);
       }
@@ -42,7 +42,7 @@ export const PublishPosts: React.FC<PublishProps> = ({ posts, userId, onBack }) 
       const selectedPosts = posts.filter(post => selectedPlatforms.includes(post.platform));
       
       const publishResults = await postToAllPlatforms(
-        userId,
+        userId || '',
         selectedPosts,
         (platform, status) => {
           setPublishProgress(prev => ({ ...prev, [platform]: status }));
@@ -64,7 +64,7 @@ export const PublishPosts: React.FC<PublishProps> = ({ posts, userId, onBack }) 
       {/* OAuth Management */}
       <div className="mb-6">
         <OAuthManager
-          userId={userId}
+          userId={userId || ''}
           platforms={posts.map(p => p.platform)}
           onCredentialsUpdate={checkConnectedPlatforms}
         />
